@@ -1,0 +1,82 @@
+import time
+from datetime import datetime
+
+# ANSI Escape Sequences
+RED    = "\033[31m"
+GREEN  = "\033[32m"
+YELLOW = "\033[33m"
+RESET  = "\033[0m"
+BRIGHT = "\033[1m"
+TRAFFIC_ICON = "🚦"
+
+def build_signal(lane_idx, active_idx, sec_left):
+    # Display Green for the active lane, Red for others
+    if lane_idx == active_idx:
+        return f"{GREEN}{TRAFFIC_ICON} GREEN  {sec_left:02d}s{RESET}"
+    return f"{RED}{TRAFFIC_ICON} RED    -- s{RESET}"
+
+def run_physics_system():
+    try:
+        n = int(input("Number of Junctions: ") or 3)
+        distance_km = float(input("Distance (km): ") or 1.5)
+        speed_kmh = float(input("Speed (km/h): ") or 40)
+    except ValueError:
+        n, distance_km, speed_kmh = 3, 1.5, 40
+
+    # 1. THE PHYSICS: Calculate lag (t = d/v)
+    travel_lag = round((distance_km / speed_kmh) * 3600)
+    
+    base_duration = 30 
+    cycle_duration = base_duration * 4
+    all_lanes = ["Lane 1", "Lane 2", "Lane 3", "Lane 4"]
+    start_time = time.time()
+
+    while True:
+        elapsed = int(time.time() - start_time)
+        print("\033[2J\033[H", end="") 
+
+        print(f"{BRIGHT}CASCADE SYNC SYSTEM (Active){RESET}")
+        print(f"Dist: {distance_km}km | Speed: {speed_kmh}km/h | Lag: {travel_lag}s")
+        print(f"System Time: {datetime.now().strftime('%I:%M:%S %p')}\n")
+
+        header = f"{'LANE':<8}"
+        for j in range(1, n + 1):
+            header += f" || J-{j:<8}"
+        print(f"{BRIGHT}{header}{RESET}")
+        print("-" * len(header))
+
+        for l_idx, lane_name in enumerate(all_lanes):
+            row = f"{lane_name:<8}"
+            for j in range(n):
+                # 2. SYNC LOGIC
+                # We calculate 'junction_time' relative to the car's arrival
+                total_lag = j * travel_lag
+                junction_time = elapsed - total_lag
+                
+                # 3. PHASE SHIFT (Targeting Lane 4 for J-2 onwards)
+                if j > 0:
+                    # We want the light to be starting Lane 4 (offset 90s)
+                    # exactly when the car arrives (junction_time = 0)
+                    phase_offset = 3 * base_duration # 90 seconds
+                else:
+                    phase_offset = 0
+
+                # 4. CYCLE CALCULATION
+                # Add offset and modulo by cycle duration (120s)
+                # Python's % operator handles negative numbers correctly (loops back)
+                active_time = (junction_time + phase_offset) % cycle_duration
+                
+                active_lane_idx = active_time // base_duration
+                seconds_remaining = base_duration - (active_time % base_duration)
+                
+                sig = build_signal(l_idx, active_lane_idx, seconds_remaining)
+                row += f" || {sig:<15}"
+            print(row)
+
+        time.sleep(1.0 - (time.time() % 1))
+
+if __name__ == "__main__":
+    try:
+        run_physics_system()
+    except KeyboardInterrupt:
+        print(f"\n{RED}System Shutdown.{RESET}")
